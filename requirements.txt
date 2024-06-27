@@ -1,0 +1,11 @@
+rdkit-pypi
+rdkit
+cython
+torch
+torchvision
+torchaudio
+torch_geometric
+torch_scatter
+torch_sparse
+ogb==1.3.6
+

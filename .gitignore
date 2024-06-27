@@ -1,0 +1,6 @@
+**__pycache__
+/dataset
+/dataset-graph
+/gen_sequence
+/model_ckpt
+/tensorboard_trace
