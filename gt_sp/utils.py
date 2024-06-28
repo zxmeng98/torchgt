@@ -352,10 +352,9 @@ def reformat_graph(edge_index, k, block_size):
     #     p=1
     # else:   
     p_ori = len(edge_index[0]) / (g.num_nodes() * g.num_nodes()) # 1-sparsity
-    p = 1 * p_ori
-    # print(f"ori p: {p_ori}, p: {p:.6f}")
+    # p = 2 * p_ori
+    p = 1
     
-    # p = 1
     new_edge_index = generate_new_edges_optimized(edge_index, k, partition_ids, p, blocksize=block_size, new_id_mapping=new_id_mapping)
     # new_edge_index = (new_id_mapping[src.numpy()], new_id_mapping[dst.numpy()])
     # new_edge_index = (new_id_mapping[block_src.numpy()], new_id_mapping[block_dst.numpy()])
@@ -484,6 +483,7 @@ def get_batch_reorder_blockize(args, x, y, idx_batch, rest_split_sizes, device, 
             attn_bias = torch.zeros(idx_batch.shape[0], idx_batch.shape[0], args.attn_bias_dim, dtype=torch.float32) # For quicker experiments, use dummy attn bias
             attn_bias = torch.index_select(attn_bias, 0, sorted_indices)
             attn_bias = torch.index_select(attn_bias, 1, sorted_indices)
+            attn_bias = None
         else:
             attn_bias = None
         x_i = torch.index_select(x_i, 0, sorted_indices)
@@ -854,8 +854,6 @@ def copy_global_token0(x_layer: Tensor, extend_dim: int) -> Tensor:
         global_token_indices = get_global_token_indices(last_batch=False)
     else:
         global_token_indices = get_global_token_indices(last_batch=True)
-    
-    # assert: 
 
     assert x_layer.size(extend_dim) % seq_world_size == 0
     x_layer[:, torch.LongTensor(global_token_indices), :] = x_layer[:, 0, :].unsqueeze(1).repeat(1, len(global_token_indices), 1)

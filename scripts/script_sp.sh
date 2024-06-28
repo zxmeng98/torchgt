@@ -1,9 +1,14 @@
-for SEQ in 512 1024 2048 4096 8192 16384 
-do 
-    echo -e "\033[1mclean python processes\033[0m"
-    sleep 1s && pkill -9 python3 && pkill -9 python && sleep 1s
-    echo -e "\033[1mseq length ${SEQ}\033[0m"
-    torchrun --nproc_per_node=4 main_sp.py --dataset aminer --seq_len $SEQ --peak_lr 0.001 --end_lr 0.0001 --epochs 500
-done
+# multi-node
+torchrun --nproc_per_node 4 \
+    --nnodes 2 \
+    --node_rank 0 \
+    --master_addr "192.168.1.40" \
+    --master_port 2923 \
+    main_sp_node_level_sparse_dummybias.py --dataset ogbn-products --seq_len 1300000 --n_layers 4 --hidden_dim 64 --ffn_dim 64 --num_heads 8 --epochs 500 --attn_type flash
 
-torchrun --nproc_per_node=4 main_sp.py --dataset aminer --seq_len 512 --peak_lr 0.001 --end_lr 0.0001 --epochs 500
+torchrun --nproc_per_node 4 \
+    --nnodes 2 \
+    --node_rank 1 \
+    --master_addr "192.168.1.40" \
+    --master_port 2923 \
+    main_sp_node_level_sparse_dummybias.py --dataset ogbn-products --seq_len 1300000 --n_layers 4 --hidden_dim 64 --ffn_dim 64 --num_heads 8 --epochs 500 --attn_type flash

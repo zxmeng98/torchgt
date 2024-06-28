@@ -39,12 +39,12 @@ class FeedForwardNetwork(nn.Module):
         return x
     
     
-class CoreAttentionBias(nn.Module):
+class CoreAttention(nn.Module):
     """
     Core attention
     """
     def __init__(self, hidden_size, attention_dropout_rate, num_heads, attn_bias_dim):
-        super(CoreAttentionBias, self).__init__()
+        super(CoreAttention, self).__init__()
 
         # SP group: Per attention head and per partition values.
         seq_parallel_world_size = 1
@@ -101,11 +101,9 @@ class CoreAttentionBias(nn.Module):
             # attn_bias = attn_bias.repeat(1, 1, 1, num_heads)
             attn_bias = attn_bias.unsqueeze(2).repeat(1, 1, batch_size, 1, 1)  
             attn_bias = attn_bias.view(batch_size*node_num, batch_size*node_num, -1)
-            print(attn_bias[edge_index[0].to(torch.long), edge_index[1].to(torch.long), :].shape)
-            exit(0)
-
+    
             score = score + \
-                    attn_bias[edge_index[0].to(torch.long), edge_index[1].to(torch.long), :].unsqueeze(2) # TODO check attn_bias dim
+                    attn_bias[edge_index[0].to(torch.long), edge_index[1].to(torch.long), :] 
 
         # softmax -> [total_edges, np, 1]
         score = torch.exp(score) 
@@ -236,7 +234,7 @@ class MultiHeadAttention(nn.Module):
         self.linear_k = nn.Linear(hidden_size, num_heads * att_size)
         self.linear_v = nn.Linear(hidden_size, num_heads * att_size)
 
-        local_attn = CoreAttentionBias(
+        local_attn = CoreAttention(
             hidden_size, attention_dropout_rate, num_heads, attn_bias_dim)
         self.dist_attn = DistributedAttentionNoMerge(local_attn, get_sequence_parallel_group())
 

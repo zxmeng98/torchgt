@@ -477,78 +477,6 @@ class DistributedAttentionAll2all(torch.nn.Module):
 
         # out e.g., [b, s/p+1, h]
         return output
-
-
-class DistributedAttentionAll2allNoMerge(torch.nn.Module):
-    """Distributed attn with attn bias copy in each rank.
-    For graph-level tasks, no merge global tokens
-
-    Arguments:
-        local_attention (Module): local attention with q,k,v
-        sequence_process_group (ProcessGroup): sequence parallel process group
-        scatter_idx (int): scatter_idx for all2all comm
-        gather_idx (int): gather_idx for all2all comm
-    """
-
-    def __init__(
-        self,
-        local_attention: Module,
-        sequence_process_group: dist.ProcessGroup,
-        scatter_idx: int = 2, # head
-        gather_idx: int = 1, # s
-    ) -> None:
-
-        super(DistributedAttentionAll2allNoMerge, self).__init__()
-        self.local_attn = local_attention
-        self.spg = sequence_process_group
-        self.scatter_idx = scatter_idx
-        self.gather_idx = gather_idx
-
-    def forward(self, query: Tensor, key: Tensor, value: Tensor, attn_bias: Tensor, edge_index: Tensor, attn_type, *args: Any) -> Tensor:
-        """ forward
-
-        Arguments:
-            query (Tensor): query input to the layer
-            key (Tensor): key input to the layer
-            value (Tensor): value input to the layer
-            args: other args
-
-        Returns:
-            * output (Tensor): context output
-        """
-        # if self.training:
-        # in shape : [b, s/p+1, n_head, hn]
-        # global token embedding (index = 0) is same for each rank
-        # print(f'rank: {get_sequence_parallel_rank()}, q: {query[:, 0, :, :].view(4, 1, -1)}')
-        query_layer = _SeqAllToAll.apply(self.spg, query, self.scatter_idx, self.gather_idx)
-        key_layer = _SeqAllToAll.apply(self.spg, key, self.scatter_idx, self.gather_idx)
-        value_layer = _SeqAllToAll.apply(self.spg, value, self.scatter_idx, self.gather_idx)
-        # out shape : [b, s+p, np, hn]
-
-        # attn_bias, forward: split in head dim, backward: all2all
-        # in shape : [b, n_head, s/p+1, s+1]
-        if attn_bias is not None:
-            # -> [b, np, s+p, s+1]
-            attn_bias_layer = _SeqAllToAll.apply(self.spg, attn_bias, 1, 2)
-            attn_bias_layer = extend_global_token0(attn_bias_layer, extend_dim=3)
-            # out shape : [b, np, s+p, s+p]
-        else:
-            attn_bias_layer = attn_bias
-        
-        # q, k, v: [b, s+p, np, hn]
-        # -> [b, s+p, hp]
-        context_layer = self.local_attn(query_layer, key_layer, value_layer, attn_bias_layer, edge_index, attn_type, *args)
-
-        # 复制index=0的global token的embedding到每个rank让能够平均切分
-        # -> [b, s+p, hp]
-        context_layer = copy_global_token0(context_layer, extend_dim=1)
-
-        # [b, s+p, hp] -> [b, s/p+1, h]
-        # gather_idx: 1, scatter_idx: 2
-        output = _SeqAllToAll.apply(self.spg, context_layer, self.gather_idx, self.scatter_idx)
-
-        # out e.g., [b, s/p+1, h]
-        return output
     
 
 class DistributedAttentionNoMerge(torch.nn.Module):
@@ -616,10 +544,8 @@ class DistributedAttentionNoMerge(torch.nn.Module):
         context_layer = self.local_attn(query_layer, key_layer, value_layer, attn_bias_layer, edge_index, attn_type, *args)
         
         if self.training:
-            # 复制global token的embedding到每个rank让能够平均切分
             # [b, s+p, hp] -> [b, s+p, hp]
             context_layer = copy_global_token0(context_layer, extend_dim=1)
-
             # [b, s+p, hp] -> [b, s/p+1, h]
             output = _SeqAllToAll.apply(self.spg, context_layer, self.gather_idx, self.scatter_idx)
         else:

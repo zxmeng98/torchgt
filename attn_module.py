@@ -17,7 +17,7 @@ import dgl
 import itertools
 
 from torch_geometric.utils import to_undirected, remove_self_loops, add_self_loops, subgraph
-from  gt_sp.utils import fix_edge_index, partition_graph_and_remap
+from gt_sp.utils import fix_edge_index, reformat_graph
 import random
 from flash_attn import flash_attn_qkvpacked_func, flash_attn_func
 
@@ -356,44 +356,27 @@ if __name__ == "__main__":
     
     
     
-    print("start load dataset")
-    dataset = PygNodePropPredDataset(name='ogbn-arxiv', root='~/data/')
-    # dataset = PygNodePropPredDataset(name='ogbn-products', root='./products/')
+    print("Start loading dataset")
+    # dataset = PygNodePropPredDataset(name='ogbn-arxiv', root='/home/mzhang/data/')
+    dataset = PygNodePropPredDataset(name='ogbn-products', root='/home/mzhang/data/')
+    # edge_index = torch.load('./dataset/ogbn-arxiv' + '/edge_index.pt')
 
-    data = dataset[0]
-    # print(data)
     num_nodes = dataset[0].num_nodes
     total_edge_index = dataset[0].edge_index
     # print(total_edge_index.shape)
 
 
-    # 创建 NetworkX 图
-    # G = create_graph_from_edge_index(total_edge_index)
-    # 从连通分量中生成新的边索引
-    # new_total_edge_index = edge_index_from_connected_components(G)
-    # print(new_total_edge_index.shape)
-
-
-    # adj_matrix = create_sparse_matrix(total_edge_index, num_nodes)
-    # # 从连通分量中生成新的边索引
-    # new_total_edge_index = edge_index_from_scipy_sparse_matrix(adj_matrix)
-    # print(new_total_edge_index.shape)
-
-    # new_total_edge_index = edge_index_within_distance_k_parallel(total_edge_index, 5, 16)
-
     idx_batch_0 = torch.randint(0, num_nodes, [s])
-    # new_total_edge_index = gen_sub_edge_index(total_edge_index, idx_batch_0, num_nodes)
+    new_total_edge_index = gen_sub_edge_index(total_edge_index, idx_batch_0, num_nodes)
     
-    # 设置节点数量
-    num_nodes = s
-    # 生成全连接的邻接矩阵的 edge_index
-    new_total_edge_index = fully_connected_edge_index(num_nodes)
+    # num_nodes = s
+    # new_total_edge_index = fully_connected_edge_index(num_nodes)
     # print(edge_index)
-    print(f"raw edge shape: {new_total_edge_index.shape}")
+    # print(f"raw edge shape: {new_total_edge_index.shape}")
     
     
-    # # Fix edge index: add new edges of virtual nodes
-    # new_total_edge_index = fix_edge_index(new_total_edge_index, idx_batch_0.shape[0])
+    # Fix edge index: add new edges of virtual nodes
+    new_total_edge_index = fix_edge_index(new_total_edge_index, idx_batch_0.shape[0])
     # print(f"fixed edge shape: {new_total_edge_index.shape}")
 
     # result = sparse_matrix_power(new_total_edge_index, s, power, "cuda")
@@ -401,24 +384,23 @@ if __name__ == "__main__":
     # print("Sparsity of the matrix:", sparsity)
     # new_edge_index = extract_edge_index(result).to(device)
 
-    # new_edge_index = generate_edge_index(s, 0.5).to(device)s
+    # new_edge_index = generate_edge_index(s, 0.5).to(device)
     # mask = create_block_sparse_mask(s, block_size, sparsity)
     # new_edge_index = mask_to_edge_index(mask).to(device)
     
-    # if not reorder:
-    #     new_edge_index = new_total_edge_index.to(device)  
-    # else:
-    #     new_edge_index, _ = partition_graph_and_remap(new_total_edge_index, k, block_size)
-    #     # new_edge_index = new_edge_index.to(device)
-    #     print("New edge index:\n", new_edge_index.shape)
+    if not reorder:
+        new_edge_index = new_total_edge_index.to(device)  
+    else:
+        new_edge_index, _ = reformat_graph(new_total_edge_index, k, block_size)
+        new_edge_index = new_edge_index.to(device)
+        # print("New edge index:\n", new_edge_index.shape)
 
-    #### 将 edge_index 转换为字符串格式，用于保存
     str_edge_index = '\n'.join([f'{src}, {dst}' for src, dst in new_total_edge_index.t().tolist()])
 
-    # 保存到文件
-    with open('./edge_index_full.txt', 'w') as file:
-        file.write(str_edge_index)
-    exit(0)
+    # Save graph topology in file
+    # with open('./edge_index_full.txt', 'w') as file:
+    #     file.write(str_edge_index)
+    # exit(0)
 
     k = torch.randn(b, s+1, n, hn, requires_grad=True).to(device)
     q = torch.randn(b, s+1, n, hn, requires_grad=True).to(device)
@@ -437,46 +419,47 @@ if __name__ == "__main__":
     criterion = nn.MSELoss()
     
     
-    # #warm up##
-    # for i in range(20):
-    #     ret = attn(q, k, v, new_edge_index, flash_attn, full)
-    #     loss = criterion(ret, targets)
-    #     attn.zero_grad()
-    #     # 反向传播
-    #     loss.backward()
+    #warm up##
+    for i in range(20):
+        ret = attn(q, k, v, new_edge_index, flash_attn, full)
+        loss = criterion(ret, targets)
+        attn.zero_grad()
+        # 反向传播
+        loss.backward()
         
     torch.cuda.synchronize()
 
-    llm_profile = torch.profiler.profile
-    with llm_profile(
-        activities=[
-            torch.profiler.ProfilerActivity.CPU,
-            torch.profiler.ProfilerActivity.CUDA,
-        ],
-        schedule=torch.profiler.schedule(
-            skip_first=1, wait=1, warmup=1, active=1, repeat=1
-        ),
-        on_trace_ready=torch.profiler.tensorboard_trace_handler(
-            f"./tensorboard_trace/attn_module{h}_s{s}_{attn_type}_reorder-{reorder}/"
-        ),
-        with_stack=True,
-        with_modules=True,
-        profile_memory=True,
-    ) as prof:
-        start_time = time.time()
-        for i in range(6):
-            ret = attn(q, k, v, new_edge_index, flash_attn, full)
-            loss = criterion(ret, targets)
-            attn.zero_grad()
-            # 反向传播
-            loss.backward()
-            prof.step()
+    # Note: the printed attention computation time is not accurate, since there is memorcy copy time which accounts large margin. It is suggested to use profiler tool to observe the preciser time.
+    # llm_profile = torch.profiler.profile
+    # with llm_profile(
+    #     activities=[
+    #         torch.profiler.ProfilerActivity.CPU,
+    #         torch.profiler.ProfilerActivity.CUDA,
+    #     ],
+    #     schedule=torch.profiler.schedule(
+    #         skip_first=1, wait=1, warmup=1, active=1, repeat=1
+    #     ),
+    #     on_trace_ready=torch.profiler.tensorboard_trace_handler(
+    #         f"./tensorboard_trace/attn_module{h}_s{s}_{attn_type}_reorder-{reorder}/"
+    #     ),
+    #     with_stack=True,
+    #     with_modules=True,
+    #     profile_memory=True,
+    # ) as prof:
+    start_time = time.time()
+    for i in range(6):
+        ret = attn(q, k, v, new_edge_index, flash_attn, full)
+        loss = criterion(ret, targets)
+        attn.zero_grad()
+        # 反向传播
+        loss.backward()
+            # prof.step()
 
-        torch.cuda.synchronize()
+    torch.cuda.synchronize()
         
-        end_time = time.time()
+    end_time = time.time()
     
-    print("Cost {:.4f} ms with {} TFLOPS".format((end_time-start_time)/6*1000, (4*s*s*h*10/(end_time-start_time)/(1000*1000*1000*1000))))
+    print("Attn Computation: {:.4f} ms with {} TFLOPS".format((end_time-start_time)/6*1000, (4*s*s*h*10/(end_time-start_time)/(1000*1000*1000*1000))))
     allocated = torch.cuda.memory_allocated(device)
     reserved = torch.cuda.memory_reserved(device)
     print(f"Allocated memory: {allocated / 1024 / 1024} MB")

@@ -22,7 +22,7 @@ def parser_add_main_args(parser):
     parser.add_argument('--attn_type', type=str, default="sparse", help='whether to use sparse attention')
 
     # training args
-    parser.add_argument('--seq_len', type=int, default=128, help='total sequence length here')
+    parser.add_argument('--seq_len', type=int, default=256000, help='total sequence length here')
     parser.add_argument('--weight_decay', type=float, default=0.01)
     parser.add_argument('--warmup_updates', type=int, default=10,
                         help='warmup steps for optimizer learning rate scheduling')

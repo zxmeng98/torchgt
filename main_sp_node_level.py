@@ -176,7 +176,10 @@ def main():
         for i in range(num_batch):
             t0 = time.time()  
             x_i, y_i, edge_index_i, attn_bias = packed_data[i]
-            x_i, y_i, edge_index_i, attn_bias = x_i.to(device), y_i.to(device), edge_index_i.to(device), attn_bias.to(device)
+            if attn_bias is not None:
+                x_i, y_i, edge_index_i, attn_bias = x_i.to(device), y_i.to(device), edge_index_i.to(device), attn_bias.to(device)
+            else:
+                x_i, y_i, edge_index_i = x_i.to(device), y_i.to(device), edge_index_i.to(device)
         
             
             if args.attn_type == "hybrid":
@@ -216,7 +219,7 @@ def main():
         
         if epoch > 4 and args.rank == 0:  
             epoch_t_list.append(np.sum(iter_t_list))
-            print("Epoch: {:03d}, Loss: {:.4f}, Time: {:.3f}s".format(epoch, np.mean(loss_list), np.mean(epoch_t_list)))
+            print("Epoch: {:03d}, Loss: {:.4f}, Epoch Time: {:.3f}s".format(epoch, np.mean(loss_list), np.mean(epoch_t_list)))
 
         if args.rank == 0 and epoch % 5 == 0:   
             t4 = time.time()
@@ -225,7 +228,7 @@ def main():
             test_acc = sparse_eval_gpu_dummy_bias(args, model, feature, y, split_idx['test'], attn_bias, edge_index, device)
             t5 = time.time()
             print(f'Eval time {t5-t4}s')
-            print("Epoch: {:03d}, Loss: {:4f}, Train acc: {:.2%}, Val acc: {:.2%}, Test acc: {:.2%}, Time: {:.3f}s".format(
+            print("Epoch: {:03d}, Loss: {:4f}, Train acc: {:.2%}, Val acc: {:.2%}, Test acc: {:.2%}, Epoch Time: {:.3f}s".format(
                 epoch, np.mean(loss_list), train_acc, val_acc, test_acc, np.mean(epoch_t_list)))
             
             if val_acc > best_val:
