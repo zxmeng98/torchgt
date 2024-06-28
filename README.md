@@ -1,8 +1,6 @@
 # TorchGT
 A pytorch implementation of TorchGT.
 
-Model implementation is based on "Do Transformers Really Perform Bad for Graph Representation" (NeurIPS'21) [[github]](https://github.com/microsoft/Graphormer). 
-
 
 ## Run the code  
 Environment: gt
