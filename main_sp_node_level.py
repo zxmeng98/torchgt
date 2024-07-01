@@ -23,9 +23,11 @@ from gt_sp.initialize import (
     set_last_batch_global_token_indices,
 )
 from gt_sp.reducer import sync_params_and_buffers, Reducer
-from gt_sp.evaluate import sparse_eval_gpu_dummy_bias
+from gt_sp.evaluate import sparse_eval_gpu
 from gt_sp.utils import random_split_idx, get_batch_reorder_blockize
 from utils.parser_node_level import parser_add_main_args
+from collections import deque
+import dgl
 
 
 def main():
@@ -152,15 +154,9 @@ def main():
 
     num_batch = flatten_train_idx.size(0) // args.seq_len + 1
 
-    # Pack all epochs' data beforehand, if N is too large CPU may OOM
-    t0 = time.time()
-    packed_data = []
-    for i in range(num_batch):
-        idx_i = flatten_train_idx[i*args.seq_len: (i+1)*args.seq_len]
-        data_i = get_batch_reorder_blockize(args, feature, y, idx_i.to("cpu"), sub_split_seq_lens, device, edge_index, N, k=8, block_size=16)
-        packed_data.append(data_i)
-    t1 = time.time()
-    # print(f"Pack data time: {t1 - t0}s")
+    compare_ldr = deque([0, 0, 0, 0, 0]) 
+    beta_coeffi_list = [0, 1, 1.5, 5, 7, 10, '1']
+    beta_max, beta_idx  = 1, 1
 
     for epoch in range(1, args.epochs + 1):
         model.to(device)
@@ -174,14 +170,16 @@ def main():
         iter = 1
         
         for i in range(num_batch):
+            idx_i = flatten_train_idx[i*args.seq_len: (i+1)*args.seq_len]
+            packed_data = get_batch_reorder_blockize(args, feature, y, idx_i.to("cpu"), sub_split_seq_lens, device, edge_index, N, k=8, block_size=16, beta_coeffi=beta_coeffi_list[beta_idx])
+
             t0 = time.time()  
-            x_i, y_i, edge_index_i, attn_bias = packed_data[i]
+            x_i, y_i, edge_index_i, attn_bias = packed_data
             if attn_bias is not None:
                 x_i, y_i, edge_index_i, attn_bias = x_i.to(device), y_i.to(device), edge_index_i.to(device), attn_bias.to(device)
             else:
                 x_i, y_i, edge_index_i = x_i.to(device), y_i.to(device), edge_index_i.to(device)
         
-            
             if args.attn_type == "hybrid":
                 if iter in switch_points:
                     attn_type = "full"  
@@ -223,9 +221,9 @@ def main():
 
         if args.rank == 0 and epoch % 5 == 0:   
             t4 = time.time()
-            train_acc = sparse_eval_gpu_dummy_bias(args, model, feature, y, split_idx['train'], attn_bias, edge_index, device)
-            val_acc = sparse_eval_gpu_dummy_bias(args, model, feature, y, split_idx['valid'], attn_bias, edge_index, device)
-            test_acc = sparse_eval_gpu_dummy_bias(args, model, feature, y, split_idx['test'], attn_bias, edge_index, device)
+            train_acc = sparse_eval_gpu(args, model, feature, y, split_idx['train'], attn_bias, edge_index, device) 
+            val_acc = sparse_eval_gpu(args, model, feature, y, split_idx['valid'], attn_bias, edge_index, device)
+            test_acc = sparse_eval_gpu(args, model, feature, y, split_idx['test'], attn_bias, edge_index, device)
             t5 = time.time()
             print(f'Eval time {t5-t4}s')
             print("Epoch: {:03d}, Loss: {:4f}, Train acc: {:.2%}, Val acc: {:.2%}, Test acc: {:.2%}, Epoch Time: {:.3f}s".format(
@@ -241,6 +239,45 @@ def main():
             
             val_acc_list.append(val_acc)
             test_acc_list.append(test_acc)
+
+        if args.rank == 0:
+            if epoch == 0:
+                f_loss = loss.item() 
+            else:
+                f_loss_old = f_loss
+                f_loss = 0.9 * f_loss + 0.1 * loss.item()
+                if epoch >= 5:
+                    v_loss = abs(f_loss - f_loss_old) / np.sum(iter_t_list)
+                    compare_ldr.popleft()
+                    compare_ldr.append(v_loss)
+                    if epoch >= 9:
+                        increase_beta, reduce_beta = True, True
+                        for k in range(1, len(compare_ldr)):
+                            if compare_ldr[k] > compare_ldr[k-1]:
+                                reduce_beta = False
+                                break
+                        for k in range(1, len(compare_ldr)):
+                            if compare_ldr[k] < compare_ldr[k-1]:
+                                increase_beta = False
+                                break
+                        if increase_beta:
+                            if beta_idx < len(beta_coeffi_list)-1:
+                                beta_idx = beta_idx + 1
+                        if reduce_beta:
+                            if beta_idx > 0:
+                                beta_idx = beta_idx - 1
+
+        if increase_beta or reduce_beta:
+            # Notify other ranks on the beta change           
+            if args.rank == 0:
+                beta_idx_broad = torch.LongTensor([beta_idx]).to(device)
+            else:
+                beta_idx_broad = torch.empty(1, dtype=torch.int64, device=device)
+
+            dist.barrier()
+            dist.broadcast(beta_idx_broad, src_rank, group=group)
+
+            beta_idx = int(beta_idx_broad.item())
 
     if args.rank == 0:
         print("Best validation accuracy: {:.2%}, test accuracy: {:.2%}".format(best_val, best_test))

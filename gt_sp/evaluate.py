@@ -317,7 +317,7 @@ def sparse_eval_cpu_subset_batch_dummy_bias(args, model, x, y, sub_idx, dummy_at
 
 
 @torch.no_grad()
-def sparse_eval_gpu_dummy_bias(args, model, x, y, sub_idx, dummy_attn_bias, edge_index, device):
+def sparse_eval_gpu(args, model, x, y, sub_idx, attn_bias, edge_index, device):
     """
     Evaluate the model on train/valid/test subset of nodes in a batched way on GPU.
     lager seq_len will be slower 

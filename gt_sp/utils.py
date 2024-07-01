@@ -325,7 +325,7 @@ def suppress_stdout():
             sys.stdout = old_stdout
 
 
-def reformat_graph(edge_index, k, block_size):
+def reformat_graph(edge_index, k, block_size, beta_coeffi):
 
     # 构建DGL图
     src, dst = edge_index
@@ -347,13 +347,9 @@ def reformat_graph(edge_index, k, block_size):
         current_id += len(nodes_in_part)
         
     t2 = time.time()
-    # Transfer to dense block: > p的块不用转block
-    # if g.num_nodes() > 128000:
-    #     p=1
-    # else:   
+
     p_ori = len(edge_index[0]) / (g.num_nodes() * g.num_nodes()) # 1-sparsity
-    # p = 2 * p_ori
-    p = 1
+    p = beta_coeffi * p_ori
     
     new_edge_index = generate_new_edges_optimized(edge_index, k, partition_ids, p, blocksize=block_size, new_id_mapping=new_id_mapping)
     # new_edge_index = (new_id_mapping[src.numpy()], new_id_mapping[dst.numpy()])
@@ -425,7 +421,7 @@ def get_batch(args, x, y, idx_batch, adjs, rest_split_sizes, device):
         return x_i, y_i, attn_bias
     
 
-def get_batch_reorder_blockize(args, x, y, idx_batch, rest_split_sizes, device, edge_index, N, k, block_size):
+def get_batch_reorder_blockize(args, x, y, idx_batch, rest_split_sizes, device, edge_index, N, k, block_size, beta_coeffi):
     """
     Generate a local subsequence in sequence parallel
     Get sub edge_index according to sequence length
@@ -451,7 +447,9 @@ def get_batch_reorder_blockize(args, x, y, idx_batch, rest_split_sizes, device, 
     # Broadcast the reordered edges & sorted indices to all ranks
     if args.reorder:
         if args.rank == 0:
-            edge_index_i, sorted_indices = reformat_graph(edge_index_i_raw, k, block_size)
+            if beta_coeffi == '1':
+                beta_coeffi == 1
+            edge_index_i, sorted_indices = reformat_graph(edge_index_i_raw, k, block_size, beta_coeffi)
             
             sizes_broad = torch.LongTensor([edge_index_i.shape[1], sorted_indices.shape[0]]).to(device)
         else:

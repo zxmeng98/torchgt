@@ -22,8 +22,8 @@ import random
 from flash_attn import flash_attn_qkvpacked_func, flash_attn_func
 
 def generate_sparse_edge_index(num_nodes, sparsity):
-    max_edges = num_nodes * (num_nodes - 1) // 2  # 最大边数（无向图）
-    num_edges = int(max_edges * sparsity)  # 根据稀疏度计算实际边数
+    max_edges = num_nodes * (num_nodes - 1) // 2  
+    num_edges = int(max_edges * sparsity)  
 
     edges = set()
     while len(edges) < num_edges:
@@ -37,12 +37,10 @@ def generate_sparse_edge_index(num_nodes, sparsity):
     return edge_index
 
 def sparse_matrix_power(edge_index, num_nodes, power, device):
-    # 创建稀疏邻接矩阵
     edge_index = edge_index.to(device)
     values = torch.ones(edge_index.size(1), dtype=torch.float32).to(device)
     adj_matrix = torch.sparse.FloatTensor(edge_index, values, torch.Size([num_nodes, num_nodes])).to(device)
 
-    # 矩阵的幂运算
     result = adj_matrix.clone()
     cnt = 1
     for _ in range(power - 1):
@@ -52,21 +50,16 @@ def sparse_matrix_power(edge_index, num_nodes, power, device):
     return result.to("cpu")
 
 def calculate_sparsity(sparse_matrix):
-    # 获取稀疏矩阵的总元素数量
     total_elements = sparse_matrix.shape[0] * sparse_matrix.shape[1]
 
-    # 获取非零元素的数量
     non_zero_elements = sparse_matrix._nnz()
 
-    # 计算稀疏度
     sparsity = 1 - (non_zero_elements / total_elements)
     return sparsity
 
 def extract_edge_index(sparse_matrix):
-    # 从稀疏矩阵中提取边索引
     coalesced_matrix = sparse_matrix.coalesce()
     
-    # 从合并后的稀疏矩阵中提取边索引
     edge_index = coalesced_matrix.indices()
     return edge_index
 
@@ -166,7 +159,6 @@ class CoreAttention(nn.Module):
             attn_bias = attn_bias.view(batch_size*node_num, batch_size*node_num, num_heads)
             attn_bias = attn_bias.repeat(1, 1, 1, num_heads)
 
-            # NOTE attn_bias里pad的地方是-inf，所以加到score里面pad的边对应的也变为-inf，下面经过exp就为0了
             score = score + \
                     attn_bias[edge_index[0].to(torch.long), edge_index[1].to(torch.long), :].unsqueeze(2) 
 
@@ -237,28 +229,21 @@ class CoreAttention(nn.Module):
 
 
 def generate_edge_index(num_nodes, sparsity=0.5):
-    # 生成所有可能的边
     all_edges = [(i, j) for i in range(num_nodes) for j in range(i+1, num_nodes)]
 
-    # 随机选择边
     num_edges = int(len(all_edges) * sparsity)
     selected_edges = random.sample(all_edges, num_edges)
 
-    # 转换为 PyTorch 张量
     edge_index = torch.tensor(selected_edges, dtype=torch.long).t()
     return edge_index
 def create_block_sparse_mask(num_nodes, block_size, sparsity):
-    # 创建一个全零矩阵
     mask = torch.zeros(num_nodes, num_nodes)
 
-    # 计算每个 block 中的元素数量
     num_elements_per_block = block_size * block_size
 
-    # 计算需要多少个非零 block
     total_elements = num_nodes * num_nodes
     num_nonzero_blocks = int(sparsity * total_elements / num_elements_per_block)
 
-    # 在矩阵中随机放置非零 block
     for _ in range(num_nonzero_blocks):
         block_row = np.random.randint(0, num_nodes // block_size)
         block_col = np.random.randint(0, num_nodes // block_size)
@@ -268,7 +253,6 @@ def create_block_sparse_mask(num_nodes, block_size, sparsity):
     return mask
 
 def mask_to_edge_index(mask):
-    # 获取非零元素的索引
     rows, cols = mask.nonzero(as_tuple=True)
     edge_index = torch.stack([rows, cols], dim=0)
     return edge_index
@@ -279,33 +263,10 @@ def create_pairs(N, M, off_N, off_M):
     return [(a, b) for a in range(off_N, off_N + N) for b in range(off_M, off_M + M)]
 
 def fully_connected_edge_index(num_nodes):
-    # 生成所有可能的边索引
     all_edges = list(itertools.combinations(range(num_nodes), 2))
-    # 将边索引转换为 torch.tensor 格式
     edge_index_tensor = torch.tensor(all_edges, dtype=torch.long).t().contiguous()
     return edge_index_tensor
 
-
-
-# def partition_graph_and_remap(edge_index, k):
-#     # 构建DGL图
-#     src, dst = edge_index
-#     g = dgl.graph((src, dst))
-
-#     # 使用DGL的metis_partition_assignment进行图分割
-#     partition_ids = dgl.metis_partition_assignment(g, k)
-
-#     # 创建新的节点ID映射
-#     new_id_mapping = np.empty(g.num_nodes(), dtype=np.int64)
-
-#     current_id = 0
-#     for part_id in range(k):
-#         nodes_in_part = np.where(partition_ids == part_id)[0]
-#         new_id_mapping[nodes_in_part] = np.arange(current_id, current_id + len(nodes_in_part))
-#         current_id += len(nodes_in_part)
-
-#     # 生成新的边索引
-#     new_edge_index = (new_id_mapping[src.numpy()], new_id_mapping[dst.numpy()])
 
 #     return torch.tensor(new_edge_index)
 b = 1
@@ -430,34 +391,34 @@ if __name__ == "__main__":
     torch.cuda.synchronize()
 
     # Note: the printed attention computation time is not accurate, since there is memorcy copy time which accounts large margin. It is suggested to use profiler tool to observe the preciser time.
-    # llm_profile = torch.profiler.profile
-    # with llm_profile(
-    #     activities=[
-    #         torch.profiler.ProfilerActivity.CPU,
-    #         torch.profiler.ProfilerActivity.CUDA,
-    #     ],
-    #     schedule=torch.profiler.schedule(
-    #         skip_first=1, wait=1, warmup=1, active=1, repeat=1
-    #     ),
-    #     on_trace_ready=torch.profiler.tensorboard_trace_handler(
-    #         f"./tensorboard_trace/attn_module{h}_s{s}_{attn_type}_reorder-{reorder}/"
-    #     ),
-    #     with_stack=True,
-    #     with_modules=True,
-    #     profile_memory=True,
-    # ) as prof:
-    start_time = time.time()
-    for i in range(6):
-        ret = attn(q, k, v, new_edge_index, flash_attn, full)
-        loss = criterion(ret, targets)
-        attn.zero_grad()
-        # 反向传播
-        loss.backward()
-            # prof.step()
+    llm_profile = torch.profiler.profile
+    with llm_profile(
+        activities=[
+            torch.profiler.ProfilerActivity.CPU,
+            torch.profiler.ProfilerActivity.CUDA,
+        ],
+        schedule=torch.profiler.schedule(
+            skip_first=1, wait=1, warmup=1, active=1, repeat=1
+        ),
+        on_trace_ready=torch.profiler.tensorboard_trace_handler(
+            f"./tensorboard_trace/attn_module{h}_s{s}_{attn_type}_reorder-{reorder}/"
+        ),
+        with_stack=True,
+        with_modules=True,
+        profile_memory=True,
+    ) as prof:
+        start_time = time.time()
+        for i in range(6):
+            ret = attn(q, k, v, new_edge_index, flash_attn, full)
+            loss = criterion(ret, targets)
+            attn.zero_grad()
+            # 反向传播
+            loss.backward()
+            prof.step()
 
-    torch.cuda.synchronize()
-        
-    end_time = time.time()
+        torch.cuda.synchronize()
+            
+        end_time = time.time()
     
     print("Attn Computation: {:.4f} ms with {} TFLOPS".format((end_time-start_time)/6*1000, (4*s*s*h*10/(end_time-start_time)/(1000*1000*1000*1000))))
     allocated = torch.cuda.memory_allocated(device)
