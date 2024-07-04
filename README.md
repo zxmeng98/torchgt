@@ -1,4 +1,4 @@
-# <center> TorchGT
+# <p align="center">TorchGT</p>
 TorchGT is an efficient, scalable, and accurate graph transformer training system. It intelligently realizes long sequence training with high efficiency in an algorithm and system co-design way. To learn more about how TorchGT works, please refer our paper.
 
 # Artifact Evaluation
