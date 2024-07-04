@@ -1,4 +1,4 @@
-# TorchGT
+# <center> TorchGT
 TorchGT is an efficient, scalable, and accurate graph transformer training system. It intelligently realizes long sequence training with high efficiency in an algorithm and system co-design way. To learn more about how TorchGT works, please refer our paper.
 
 # Artifact Evaluation
@@ -63,7 +63,7 @@ Best validation accuracy: 54.52%, test accuracy: 54.35%
 - From the output we can see the efficiency improvement (around 3.9x) and model quality maintenance by using TorchGT. This is mainly because TorchGT significantly reduces the computation complexity of the attention module.
 
 
-### Figure 8(a): Maximum sequence length 
+## Figure 8(a): Maximum sequence length 
 
 To explore the supported maximum sequence length w.r.t. 4 GPUs, one can use the following command line:
 ```bash
@@ -111,7 +111,7 @@ And the GPU statistics look like:
 
 - We can successfully run the experiment with sequence length nearly 900K on 4 GPUs. And by oberserving the GPU memory statistics, we can see the the maximum sequence length of TorchGT can reach up to 900K on 4 GPUs. By changing the input argument to ```--nproc_per_node=2```, we can see Torch supports up to 600K sequence length on 2 GPUs. It can also enable the sequence length of 400K with only 1 GPU, substantially larger than that of GP-RAW. The sequence length of TorchGT almost scales linearly w.r.t. the number of GPUs.
 
-### Figure 11(a): Attention Module Computation Time
+## Figure 11(a): Attention Module Computation Time
 To see the impact of elastic computation reformation module, we record the attention computation time corresponding to different sequence lengths. For attention module microbenchmarks, we choose attention computation on $S$=64K for illustration. One can use the following command to reproduce the experiments:
 
 ```bash
