@@ -15,6 +15,7 @@ import numpy as np
 # import os
 import dgl
 import itertools
+import argparse
 
 from torch_geometric.utils import to_undirected, remove_self_loops, add_self_loops, subgraph
 from gt_sp.utils import fix_edge_index, reformat_graph
@@ -268,7 +269,6 @@ def fully_connected_edge_index(num_nodes):
     return edge_index_tensor
 
 
-#     return torch.tensor(new_edge_index)
 b = 1
 s = 64000
 n = 4 # per rank
@@ -300,6 +300,17 @@ reorder = True
 device = "cuda"
     
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='TorchGT node-level training arguments.')
+    parser.add_argument('--s', type=int, default=64000, help='sequence length')
+    parser.add_argument('--n', type=int, default=4, help='the number of attention heads')
+    parser.add_argument('--hn', type=int, default=16, help='hidden size per head')
+    parser.add_argument('--method', type=str, default='torchgt', help='method to do attention')
+    args = parser.parse_args()
+    s = args.s
+    n = args.n
+    hn = args.hn
+    h = n * hn
+    
     seed = 1234
     random.seed(seed)
     np.random.seed(seed)
@@ -307,6 +318,19 @@ if __name__ == "__main__":
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
     
+    if args.method == 'torchgt':
+        flash_attn = False
+        full = False
+        reorder = True
+    elif args.method == 'sparse':
+        flash_attn = False
+        full = False
+        reorder = False
+    elif args.method == 'flash':
+        flash_attn = True
+        full = False
+        reorder = False
+         
     if flash_attn:
         attn_type = "flash"
     else:
@@ -315,12 +339,9 @@ if __name__ == "__main__":
         else:
             attn_type = "sparse"
     
-    
-    
     print("Start loading dataset")
-    # dataset = PygNodePropPredDataset(name='ogbn-arxiv', root='/home/mzhang/data/')
-    dataset = PygNodePropPredDataset(name='ogbn-products', root='/home/mzhang/data/')
-    # edge_index = torch.load('./dataset/ogbn-arxiv' + '/edge_index.pt')
+    dataset = PygNodePropPredDataset(name='ogbn-arxiv', root='./dataset/')
+    # dataset = PygNodePropPredDataset(name='ogbn-products', root='/home/mzhang/data/')
 
     num_nodes = dataset[0].num_nodes
     total_edge_index = dataset[0].edge_index

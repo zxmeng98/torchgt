@@ -12,6 +12,8 @@ import os
 import dgl
 import copy
 import contextlib
+import networkx as nx
+import itertools
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from torch_geometric.utils import to_undirected, remove_self_loops, add_self_loops, subgraph
 from gt_sp.initialize import (
@@ -219,7 +221,6 @@ def create_pairs(N, M, off_N, off_M):
 
 
 def generate_new_edges_optimized(edge_index, k, partition_ids, p, blocksize, new_id_mapping):
-    # 初始化边计数和新边索引
     # edge_counts = np.zeros((k, k), dtype=np.int64)
     new_edges = []
     src, dst = edge_index
@@ -248,16 +249,13 @@ def generate_new_edges_optimized(edge_index, k, partition_ids, p, blocksize, new
     # sorted_a_new = (list(sorted_a1), list(sorted_a2))
     # sorted_b_new = (list(sorted_b1), list(sorted_b2))
     
-    # 计算每个分区对之间的边数
     # for src, dst in zip(*edge_index):
     #     src_part = partition_ids[src]
     #     dst_part = partition_ids[dst]
     #     edge_counts[src_part, dst_part] += 1
 
-    # 计算每个分区的节点数
     node_counts = np.zeros(k, dtype=int)
     total_node_offset = np.zeros(k, dtype=int)
-    # 通过循环统计每个分区的节点数
     for pid in partition_ids:
         node_counts[pid] += 1
 
@@ -266,33 +264,27 @@ def generate_new_edges_optimized(edge_index, k, partition_ids, p, blocksize, new
     # print(total_node_offset)
     # node_counts = np.array([np.sum(partition_ids == i) for i in range(k)])
     # print(node_counts)
-    # 处理每个分区对
     keep_cnt = 0
     for i in range(k):
         for j in range(k):
-            # 计算稀疏度
             sparsity = edge_count_list[i*k+j] / (node_counts[i] * node_counts[j])
             # if i == j:
             # print(f"chunk sparsity: {sparsity:.8f}, {sparsity/8.7988461e-05}")
 
-            # 根据稀疏度处理划分开的chunk, chunk的稀疏度大于阈值p就保留这个chunk不做block化
             if sparsity > p:
                 raw_edge_src = sorted_b1[cumulative_sum[i*k+j]:cumulative_sum[i*k+j+1]]
                 raw_edge_dst = sorted_b2[cumulative_sum[i*k+j]:cumulative_sum[i*k+j+1]]
                 # print(len(raw_edge_src))
                 for jj in range(len(raw_edge_src)):
                     new_edges.append((new_id_mapping[raw_edge_src[jj]], new_id_mapping[raw_edge_dst[jj]]))
-                # 保留原有边
                 # for src, dst in zip(*edge_index):
                 #     if partition_ids[src] == i and partition_ids[dst] == j:
                 #         new_edges.append((new_id_mapping[src], new_id_mapping[dst]))
                 #         # new_edges.append((src, dst))
             else:
                 # mask = torch.zeros(node_counts[i], node_counts[j])
-                # 计算每个 block 中的元素数量
                 num_elements_per_block = blocksize * blocksize
 
-                # 计算需要多少个非零 block
                 total_elements = node_counts[i] * node_counts[j]
                 num_nonzero_blocks = int(sparsity * total_elements / num_elements_per_block) + 1
                 np.random.seed(keep_cnt)
@@ -315,7 +307,6 @@ def generate_new_edges_optimized(edge_index, k, partition_ids, p, blocksize, new
 
 @contextlib.contextmanager
 def suppress_stdout():
-    """用于抑制标准输出的上下文管理器。"""
     with open(os.devnull, 'w') as devnull:
         old_stdout = sys.stdout
         sys.stdout = devnull
@@ -325,19 +316,16 @@ def suppress_stdout():
             sys.stdout = old_stdout
 
 
-def reformat_graph(edge_index, k, block_size, beta_coeffi):
+def reformat_graph(edge_index, k, block_size, beta_coeffi='1'):
 
-    # 构建DGL图
     src, dst = edge_index
     g = dgl.graph((src, dst))
     # logging.getLogger('dgl').setLevel(logging.WARNING)
-    # 使用DGL的metis_partition_assignment进行图分割
     t0 = time.time()
     with suppress_stdout():
         partition_ids = dgl.metis_partition_assignment(g, k)
     # exit(0)
     t1 = time.time()
-    # 创建新的节点ID映射
     new_id_mapping = np.empty(g.num_nodes(), dtype=np.int64)
     # print(x.shape)
     current_id = 0
@@ -349,22 +337,22 @@ def reformat_graph(edge_index, k, block_size, beta_coeffi):
     t2 = time.time()
 
     p_ori = len(edge_index[0]) / (g.num_nodes() * g.num_nodes()) # 1-sparsity
-    p = beta_coeffi * p_ori
+    if beta_coeffi == '1':
+        p = 1
+    else:
+        p = beta_coeffi * p_ori
+    p = 1
     
     new_edge_index = generate_new_edges_optimized(edge_index, k, partition_ids, p, blocksize=block_size, new_id_mapping=new_id_mapping)
     # new_edge_index = (new_id_mapping[src.numpy()], new_id_mapping[dst.numpy()])
     # new_edge_index = (new_id_mapping[block_src.numpy()], new_id_mapping[block_dst.numpy()])
     t3 = time.time()
-    # 重排x
     new_id_mapping_tensor = torch.from_numpy(new_id_mapping)
 
-    # 获取新ID排序对应的原始索引 （用来重组x, y, attn_bias）
     sorted_indices = torch.argsort(new_id_mapping_tensor)
 
-    # 获取排序索引
     sorted_indices_edge = torch.argsort(new_edge_index[0])
 
-    # 使用排序索引重新排列整个edge_index
     sorted_edge_index = new_edge_index[:, sorted_indices_edge]
     t4 = time.time()
     # print("Time in reorder {} {} {}".format(t1-t0, t2-t1, t3-t2))
@@ -391,10 +379,7 @@ def get_batch(args, x, y, idx_batch, adjs, rest_split_sizes, device):
     attn_bias = attn_bias.permute(1, 2, 0) # [s, s, d]
 
     if idx_batch.shape[0] < seq_length:
-        # TODO 对于剩余的node，pad 0到seq length, feature用0 pad, label用-100 pad, attn_bias用0填充，
-        # TODO 考虑多个batch size的情况，用torch.nn.utils.rnn.pad_sequence
         
-        # 首先对剩的点尽量均匀划分，然后根据最大的pad
         assert rest_split_sizes is not None, 'split_sizes should not be None'
         x_i_list = [t for t in torch.split(x_i, rest_split_sizes, dim=0)]
         y_i_list = [t for t in torch.split(y_i, rest_split_sizes, dim=0)]
@@ -421,12 +406,13 @@ def get_batch(args, x, y, idx_batch, adjs, rest_split_sizes, device):
         return x_i, y_i, attn_bias
     
 
-def get_batch_reorder_blockize(args, x, y, idx_batch, rest_split_sizes, device, edge_index, N, k, block_size, beta_coeffi):
+def get_batch_reorder_blockize(args, x, y, idx_batch, rest_split_sizes, device, edge_index, N, k, block_size, beta_coeffi='1'):
     """
+    Dummy bias for faster processing time each iteration
     Generate a local subsequence in sequence parallel
     Get sub edge_index according to sequence length
     """
-    # For sequence parallel
+     # For sequence parallel
     seq_parallel_world_size = get_sequence_parallel_world_size() if sequence_parallel_is_initialized() else 1
     seq_parallel_world_rank = get_sequence_parallel_rank() if sequence_parallel_is_initialized() else 0
     if seq_parallel_world_size > 1:
@@ -447,8 +433,6 @@ def get_batch_reorder_blockize(args, x, y, idx_batch, rest_split_sizes, device, 
     # Broadcast the reordered edges & sorted indices to all ranks
     if args.reorder:
         if args.rank == 0:
-            if beta_coeffi == '1':
-                beta_coeffi == 1
             edge_index_i, sorted_indices = reformat_graph(edge_index_i_raw, k, block_size, beta_coeffi)
             
             sizes_broad = torch.LongTensor([edge_index_i.shape[1], sorted_indices.shape[0]]).to(device)
@@ -478,10 +462,10 @@ def get_batch_reorder_blockize(args, x, y, idx_batch, rest_split_sizes, device, 
         if args.model == "graphormer":
             sorted_indices = sorted_indices[sorted_indices != 0]
             sorted_indices = sorted_indices - 1
-            attn_bias = torch.zeros(idx_batch.shape[0], idx_batch.shape[0], args.attn_bias_dim, dtype=torch.float32) # For quicker experiments, use dummy attn bias
-            attn_bias = torch.index_select(attn_bias, 0, sorted_indices)
-            attn_bias = torch.index_select(attn_bias, 1, sorted_indices)
             attn_bias = None
+            # attn_bias = torch.zeros(idx_batch.shape[0], idx_batch.shape[0], args.attn_bias_dim, dtype=torch.float32) # For quicker experiments, use dummy attn bias
+            # attn_bias = torch.index_select(attn_bias, 0, sorted_indices)
+            # attn_bias = torch.index_select(attn_bias, 1, sorted_indices)
         else:
             attn_bias = None
         x_i = torch.index_select(x_i, 0, sorted_indices)
@@ -561,7 +545,6 @@ def get_batch_papers100m(args, x, y, idx_batch, attn_bias, rest_split_sizes, dev
         edge_index_i, sorted_indices = reformat_graph(edge_index_i, k, block_size)
         
         if args.model == "graphormer":
-            # 重排x,y, attn_bias张量的第0维度
             sorted_indices = sorted_indices[sorted_indices != 0]
             sorted_indices = sorted_indices - 1
 
@@ -594,14 +577,12 @@ def get_batch_from_loader(args, batch):
     Set global token indices for each batch.
     """  
     #### For sequence parallel
-    # graph-level each batch的seq len不一样
     seq_parallel_world_size = get_sequence_parallel_world_size() if sequence_parallel_is_initialized() else 1
     seq_parallel_world_rank = get_sequence_parallel_rank() if sequence_parallel_is_initialized() else 0
     
     seq_length = batch.x.size(1)
 
     #### Split input data to each rank: if attn_bias use all2all, need to split attn_bias, spatial_pos, edge_input
-    # batch.x还没有加global token
     sub_split_seq_lens = batch.sub_split_seq_lens # [9, 9, 9, 8]
     # if args.rank == 0:
     #     print(f'This batch seq len: {seq_length}, sub seq len: {sub_seq_lengths}')
@@ -650,7 +631,6 @@ def get_batch_from_loader(args, batch):
     # set_global_token_indices(global_token_indices)
     batch.global_token_indices = global_token_indices
 
-    # TODO 后续显存优化
     del batch.sub_split_seq_lens      
     
     
@@ -661,7 +641,6 @@ def get_batch_from_loader_malnet(args, batch):
     Set global token indices for each batch.
     """  
     #### For sequence parallel
-    # graph-level each batch的seq len不一样
     seq_parallel_world_size = args.world_size
     seq_length = batch.x.size(1)
 
@@ -887,7 +866,7 @@ def broadcast_data(args, dataset_train, batch, device):
     #             pin_memory=True,
     #             sampler=sampler,
     #             collate_fn=partial(
-    #                 collator, # collator是在生成batch的时候会被调用: for batch in loader
+    #                 collator,
     #                 max_node=get_dataset(args.dataset)["max_node"],
     #                 multi_hop_max_dist=args.multi_hop_max_dist,
     #                 spatial_pos_max=args.spatial_pos_max,
@@ -902,44 +881,87 @@ def broadcast_data(args, dataset_train, batch, device):
 
 
 def calc_power_edge_index(edge_index, N, power):
-    # 创建稀疏邻接矩阵
     values = torch.ones(edge_index.size(1), dtype=torch.float32)
     adj_matrix = torch.sparse_coo_tensor(edge_index, values, torch.Size([N, N]))
 
-    # 矩阵的幂运算
     m_adj = adj_matrix.clone()
     for _ in range(power - 1):
         m_adj = torch.sparse.mm(m_adj, adj_matrix) 
 
     sparse_rate = calculate_sparsity(m_adj)
 
-    # 从稀疏矩阵中提取边索引
     coalesced_matrix = m_adj.coalesce()
     
-    # 从合并后的稀疏矩阵中提取边索引
     m_edge_index = coalesced_matrix.indices()
     return m_edge_index
 
 
 def calculate_sparsity(sparse_matrix):
-    # 获取稀疏矩阵的总元素数量
     total_elements = sparse_matrix.shape[0] * sparse_matrix.shape[1]
 
-    # 获取非零元素的数量
     non_zero_elements = sparse_matrix._nnz()
 
-    # 计算稀疏度
     sparsity = 1 - (non_zero_elements / total_elements)
     return sparsity
 
 
 def calculate_sparsity_csr(csr_matrix):
-    # 非零元素的数量
     non_zero = csr_matrix.nnz
 
-    # 矩阵的总元素数量
     total_elements = csr_matrix.shape[0] * csr_matrix.shape[1]
 
-    # 计算稀疏度
     sparsity = 1 - (non_zero / total_elements)
     return sparsity
+
+
+def make_strongly_connected(graph):
+    if nx.is_weakly_connected(graph):
+        print("The graph is already strongly connected.")
+        return graph
+    
+    scc = list(nx.strongly_connected_components(graph))
+    
+    if len(scc) == 1:
+        return graph
+
+    for i in range(len(scc) - 1):
+        comp_a = scc[i]
+        comp_b = scc[i + 1]
+        node_a = next(iter(comp_a))
+        node_b = next(iter(comp_b))
+        graph.add_edge(node_a, node_b)
+
+    scc = list(nx.strongly_connected_components(graph))
+    while len(scc) > 1:
+        comp_a = scc[0]
+        comp_b = scc[1]
+        node_a = next(iter(comp_a))
+        node_b = next(iter(comp_b))
+        graph.add_edge(node_a, node_b)
+        scc = list(nx.strongly_connected_components(graph))
+
+    return graph
+
+
+def check_conditions(edge_index, num_nodes):
+    graph = nx.DiGraph()
+    
+    nodes = range(num_nodes)
+    for node in nodes:
+        graph.add_node(node)
+        
+    edges = list(zip(edge_index[0], edge_index[1]))
+    graph.add_edges_from(edges)
+
+    for node in graph.nodes:
+        if not graph.has_edge(node, node):
+            print(f"Condition 1 failed: Node {node} does not attend to itself.")
+            return False
+
+    # graph = make_strongly_connected(graph)
+    if not nx.is_weakly_connected(graph):
+        print("Condition 3 failed: The graph is not strongly connected.")
+        return False
+
+    print("All conditions are satisfied.")
+    return True

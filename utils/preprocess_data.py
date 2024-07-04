@@ -242,9 +242,7 @@ def get_dataset(dataset_name):
 
 
 def process_data(dataset_name, k1):
-    """以一个node为中心, 采样k1个邻居, 构成一个sequence, 作为一个sample
-    1 node = 1 sequence
-
+    """
     Arguments:
         k1: sequence length-1 / number of sampled neighbors
     """
@@ -370,67 +368,5 @@ def rand_nodes_seq(dataset_name, k1, p=None):
     #     torch.save(feature, feature_file_path)
 
 
-def node_sampling(p=None):
-    print('Sampling Nodes!')
-    name = 'Physics'
-    edge_index = torch.load('./dataset/'+name+'/edge_index.pt')
-    data_x = torch.load('./dataset/'+name+'/x.pt')
-    data_y = torch.load('./dataset/'+name+'/y.pt')
-    adj = sp.coo_matrix((np.ones(edge_index.shape[1]), (edge_index[0], edge_index[1])),
-                                shape=(data_y.shape[0], data_y.shape[0]), dtype=np.float32)
-    normalized_adj = sp.load_npz('./dataset/'+name+'/normalized_adj.npz')
-    column_normalized_adj = sp.load_npz('./dataset/' + name + '/column_normalized_adj.npz')
-    c = 0.15
-    k1 = 14
-    Samples = 8 # sampled subgraphs for each node
-    
-    power_adj_list = [normalized_adj]
-    for m in range(5): # attn_bias_dim - 1
-        power_adj_list.append(power_adj_list[0]*power_adj_list[m])
-
-    sampling_matrix = c * inv((sp.eye(adj.shape[0]) - (1 - c) * column_normalized_adj).toarray()) # power_adj_list[0].toarray()
-    feature = data_x
-
-    #create subgraph samples
-    data_list = []
-    for id in range(data_y.shape[0]):
-        s = sampling_matrix[id]
-        s[id] = -1000.0
-        top_neighbor_index = s.argsort()[-k1:]
-
-        s = sampling_matrix[id]
-        s[id] = 0
-        s = np.maximum(s, 0)
-        sample_num1 = np.minimum(k1, (s > 0).sum())
-        sub_data_list = []
-        for _ in range(Samples):
-            if sample_num1 > 0:
-                sample_index1 = np.random.choice(a=np.arange(data_y.shape[0]), size=sample_num1, replace=False, p=s/s.sum())
-            else:
-                sample_index1 = np.array([], dtype=int)
-
-            node_feature_id = torch.cat([torch.tensor([id, ]), torch.tensor(sample_index1, dtype=int), torch.tensor(top_neighbor_index[: k1-sample_num1], dtype=int)])
-
-            attn_bias = torch.cat([torch.tensor(i[node_feature_id, :][:, node_feature_id].toarray(), dtype=torch.float32).unsqueeze(0) for i in power_adj_list])
-            attn_bias = attn_bias.permute(1, 2, 0)
-
-            sub_data_list.append([attn_bias, node_feature_id, data_y[node_feature_id].long()])
-        data_list.append(sub_data_list)
-
-    return data_list, feature
-
-
 if __name__ == '__main__':
-    # First get_dataset
-
-    # rand_nodes_seq('Physics', 4000)
-   
-    # get_dataset('Amazon2M')
-    get_dataset('amazon')
-    # node_sampling()
-
-    # process_data('pubmed', 50)
-    # process_data('Physics', 100)
-    # process_data('aminer', 25)
-
-    # rand_nodes_seq('pubmed', 1000)
+    get_dataset('ogbn-arxiv')

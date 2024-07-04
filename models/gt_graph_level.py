@@ -108,7 +108,6 @@ class CoreAttention(nn.Module):
             attn_bias = attn_bias.permute(0, 2, 3, 1).contiguous().unsqueeze(2).repeat(1, 1, batch_size, 1, 1)  
             attn_bias = attn_bias.view(batch_size*node_num, batch_size*node_num, self.num_attention_heads_per_partition)
 
-            # NOTE attn_bias里pad的地方是-inf，所以加到score里面pad的边对应的也变为-inf，下面经过exp就为0了
             score = score + \
                     attn_bias[edge_index[0].to(torch.long), edge_index[1].to(torch.long), :].unsqueeze(2) 
 

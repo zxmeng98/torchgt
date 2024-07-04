@@ -4,7 +4,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torch_geometric.utils import degree
 from torch_sparse import SparseTensor, matmul
-from gt_sp.layer import DistributedAttentionLocalBias, DistributedAttentionAll2all, DistributedAttentionAll2allNoMerge
+from gt_sp.layer import DistributedAttentionNoMerge
 from gt_sp.initialize import (
     initialize_distributed,
     sequence_parallel_is_initialized,
@@ -90,7 +90,6 @@ class GraphAttnBias(nn.Module):
     ):
         super(GraphAttnBias, self).__init__()
 
-        # NOTE：attn_bias每个head复制相等，可以收敛比较快一些
         # num_heads = 1
         self.num_heads = num_heads
         self.multi_hop_max_dist = multi_hop_max_dist
@@ -104,7 +103,6 @@ class GraphAttnBias(nn.Module):
 
 
     def forward(self, batched_data):
-        # attn_bias: [bs, s+1, s+1], all zeros。这个batch所有graph的attn_bias都concat在一起了
         attn_bias, spatial_pos = (
             batched_data.attn_bias,
             batched_data.spatial_pos,
@@ -265,7 +263,6 @@ class CoreAttention(nn.Module):
             attn_bias = attn_bias.permute(0, 2, 3, 1).contiguous().unsqueeze(2).repeat(1, 1, batch_size, 1, 1)  
             attn_bias = attn_bias.view(batch_size*node_num, batch_size*node_num, self.num_attention_heads_per_partition)
 
-            # NOTE attn_bias里pad的地方是-inf，所以加到score里面pad的边对应的也变为-inf，下面经过exp就为0了
             score = score + \
                     attn_bias[edge_index[0].to(torch.long), edge_index[1].to(torch.long), :].unsqueeze(2) 
 
@@ -334,7 +331,7 @@ class MultiHeadAttention(nn.Module):
 
         local_attn = CoreAttention(
             hidden_size, attention_dropout_rate, num_heads)
-        self.dist_attn = DistributedAttentionAll2allNoMerge(local_attn, get_sequence_parallel_group())
+        self.dist_attn = DistributedAttentionNoMerge(local_attn, get_sequence_parallel_group())
 
         self.output_layer = nn.Linear(num_heads * att_size, hidden_size)
 
@@ -487,7 +484,6 @@ class Graphormer(nn.Module):
         
     def forward(self, batched_data, perturb=None, attn_type=None):
         x = self.graph_node_feature(batched_data) # [bs, s/p + 1, h]
-        # attn_bias = self.graph_attn_bias(batched_data) # [bs, n_head, s+1, s+1]. bs, head dim不一样
         attn_bias = None
         edge_index = batched_data.edge_index
         del batched_data

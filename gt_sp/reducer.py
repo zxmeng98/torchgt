@@ -29,7 +29,7 @@ class Reducer(object):
         cnt = 0
         for i, (name, param) in enumerate(model.named_parameters()):
             cnt += 1
-            self._group[name] = dist.new_group() # 每一类参数一个group
+            self._group[name] = dist.new_group() 
 
         self._stream = torch.cuda.Stream(device=f'cuda:{torch.cuda.current_device()}')
 
@@ -40,7 +40,7 @@ class Reducer(object):
             group = self._group[name]
             data.div_(get_sequence_parallel_world_size())
             dist.all_reduce(data, op=dist.ReduceOp.SUM, group=group)
-            # param.grad = data             # 这里去掉这句每个rank allreduce的grad就一样了
+            # param.grad = data            
 
     def synchronize(self):
         torch.cuda.current_stream().wait_stream(self._stream)

@@ -31,12 +31,11 @@ from gt_sp.initialize import (
     last_batch_flag,
 )
 from gt_sp.reducer import sync_params_and_buffers, Reducer
-from gt_sp.evaluate import eval_cpu_subset_batch, eval_cpu_fullgraph, eval_cpu_batch
-from gt_sp.utils import get_batch_from_loader, get_batch_from_loader_malnet, pad_x_bs, pad_2d_bs
+from gt_sp.utils import pad_x_bs, pad_2d_bs
 from data.dataset import GraphormerDataset
 from models.graphormer_dist_graph_level_mp_malnet import Graphormer
 from models.gt_dist_graph_level_mp_malnet import GT
-from utils.parser import parser_add_main_args
+from utils.parser_graph_level import parser_add_main_args
 import torch.multiprocessing as mp
 from datetime import timedelta
 

@@ -92,7 +92,6 @@ class GraphAttnBias(nn.Module):
 
 
     def forward(self, batched_data):
-        # attn_bias: [bs, s+1, s+1], all zeros。这个batch所有graph的attn_bias都concat在一起了
         attn_bias, spatial_pos = (
             batched_data.attn_bias,
             batched_data.spatial_pos,

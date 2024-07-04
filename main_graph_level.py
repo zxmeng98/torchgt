@@ -14,9 +14,9 @@ import pandas as pd
 import torch.distributed as dist
 from gt_sp.early_stop import EarlyStopping, Stop_args
 from data.dataset import GraphormerDataset
-from models.graphormer_sparse_graph_level import Graphormer
+from models.graphormer_graph_level import Graphormer
 from models.gt_graph_level import GT
-from utils.parser import parser_add_main_args
+from utils.parser_graph_level import parser_add_main_args
 from gt_sp.evaluate import calc_acc
 from torch.utils.data import DataLoader, Subset
 

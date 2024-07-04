@@ -206,7 +206,6 @@ class DistributedAttention(torch.nn.Module):
         context_layer = self.local_attn(query_layer, key_layer, value_layer, attn_bias_layer, *args)
         
         if self.training:
-            # 复制global token的embedding到每个rank让能够平均切分
             # [b, s+1, hp] -> [b, s+p, hp]
             context_layer = extend_global_token(context_layer, extend_dim=1)
 
@@ -290,7 +289,6 @@ class DistributedAttentionGlobal0(torch.nn.Module):
         context_layer = self.local_attn(query_layer, key_layer, value_layer, attn_bias_layer, edge_index, *args)
         
         if self.training:
-            # 复制global token的embedding到每个rank让能够平均切分
             # [b, s+1, hp] -> [b, s+p, hp]
             context_layer = extend_global_token0(context_layer, extend_dim=1)
 
@@ -366,7 +364,6 @@ class DistributedAttentionLocalBias(torch.nn.Module):
         # [b, s+1, hp]
         context_layer = self.local_attn(query_layer, key_layer, value_layer, attn_bias_layer, edge_index, *args)
 
-        # 复制global token的embedding到每个rank让能够平均切分
         # [b, s+1, hp] -> [b, s+p, hp]
         context_layer = extend_global_token0(context_layer, extend_dim=1)
 
@@ -388,7 +385,6 @@ class DistributedAttentionLocalBias(torch.nn.Module):
         #     return context_layer
         
         # if self.training:
-        #     # 复制global token的embedding到每个rank让能够平均切分
         #     # [b, s+1, hp] -> [b, s+p, hp]
         #     context_layer = extend_global_token0(context_layer, extend_dim=1)
 
@@ -467,7 +463,6 @@ class DistributedAttentionAll2all(torch.nn.Module):
         # [b, s+1, hp]
         context_layer = self.local_attn(query_layer, key_layer, value_layer, attn_bias_layer, edge_index, *args)
 
-        # 复制global token的embedding到每个rank让能够平均切分
         # [b, s+1, hp] -> [b, s+p, hp]
         context_layer = extend_global_token0(context_layer, extend_dim=1)
 

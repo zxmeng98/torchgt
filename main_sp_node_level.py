@@ -24,7 +24,7 @@ from gt_sp.initialize import (
 )
 from gt_sp.reducer import sync_params_and_buffers, Reducer
 from gt_sp.evaluate import sparse_eval_gpu
-from gt_sp.utils import random_split_idx, get_batch_reorder_blockize
+from gt_sp.utils import random_split_idx, get_batch_reorder_blockize, check_conditions
 from utils.parser_node_level import parser_add_main_args
 from collections import deque
 import dgl
@@ -78,7 +78,6 @@ def main():
         flatten_train_idx = torch.empty(total_numel,
                                 device=device,
                                 dtype=torch.int64)
-
     # Broadcast
     dist.broadcast(flatten_train_idx, src_rank, group=group)
 
@@ -173,29 +172,30 @@ def main():
             idx_i = flatten_train_idx[i*args.seq_len: (i+1)*args.seq_len]
             packed_data = get_batch_reorder_blockize(args, feature, y, idx_i.to("cpu"), sub_split_seq_lens, device, edge_index, N, k=8, block_size=16, beta_coeffi=beta_coeffi_list[beta_idx])
 
-            t0 = time.time()  
             x_i, y_i, edge_index_i, attn_bias = packed_data
             if attn_bias is not None:
                 x_i, y_i, edge_index_i, attn_bias = x_i.to(device), y_i.to(device), edge_index_i.to(device), attn_bias.to(device)
             else:
                 x_i, y_i, edge_index_i = x_i.to(device), y_i.to(device), edge_index_i.to(device)
         
-            if args.attn_type == "hybrid":
-                if iter in switch_points:
-                    attn_type = "full"  
-                else:
-                    attn_type = "sparse"
-            elif args.attn_type == "sparse":
+            if args.attn_type == "sparse":
                 attn_type = "sparse"
             elif args.attn_type == "full":
                 attn_type = "full"
             elif args.attn_type == "flash":
                 attn_type = "flash"
-                
+            
+            # if args.attn_type == "hybrid":
+                # if args.rank == 0: 
+                #     con_result = check_conditions(edge_index, idx_i.shape[0])
+
+                # if con_result:
+                #     attn_type = "sparse"
+                # else:
+                #     attn_type = "full"       
             t1 = time.time()
                 
-            out_i = model(x_i, attn_bias, edge_index_i, attn_type=attn_type)
-                    
+            out_i = model(x_i, attn_bias, edge_index_i, attn_type=attn_type)    
             loss = F.nll_loss(out_i, y_i.long())
             optimizer.zero_grad(set_to_none=True) 
             loss.backward()
@@ -240,8 +240,9 @@ def main():
             val_acc_list.append(val_acc)
             test_acc_list.append(test_acc)
 
+        # Adaptive beta
         if args.rank == 0:
-            if epoch == 0:
+            if epoch == 1:
                 f_loss = loss.item() 
             else:
                 f_loss_old = f_loss
@@ -267,37 +268,35 @@ def main():
                             if beta_idx > 0:
                                 beta_idx = beta_idx - 1
 
-        if increase_beta or reduce_beta:
-            # Notify other ranks on the beta change           
-            if args.rank == 0:
-                beta_idx_broad = torch.LongTensor([beta_idx]).to(device)
-            else:
-                beta_idx_broad = torch.empty(1, dtype=torch.int64, device=device)
+        # Notify other ranks on the beta change           
+        if args.rank == 0:
+            beta_idx_broad = torch.LongTensor([beta_idx]).to(device)
+        else:
+            beta_idx_broad = torch.empty(1, dtype=torch.int64, device=device)
 
-            dist.barrier()
-            dist.broadcast(beta_idx_broad, src_rank, group=group)
-
-            beta_idx = int(beta_idx_broad.item())
+        dist.barrier()
+        dist.broadcast(beta_idx_broad, src_rank, group=group)
+        beta_idx = int(beta_idx_broad.item())
 
     if args.rank == 0:
         print("Best validation accuracy: {:.2%}, test accuracy: {:.2%}".format(best_val, best_test))
 
-        # if not os.path.exists(f'./exps/{args.dataset}'): 
-        #     os.makedirs(f'./exps/{args.dataset}')
+        if not os.path.exists(f'./exps/{args.dataset}'): 
+            os.makedirs(f'./exps/{args.dataset}')
             
-        # if args.attn_type != "hybrid":
-        #     if args.reorder:
-        #         np.save(f'./exps/{args.dataset}/{args.model}{args.hidden_dim}_{str(args.attn_type)}_reorder_s{args.seq_len}_e{args.epochs}_sp{args.world_size}_test-fp16', np.array(test_acc_list))
-        #         # np.save('./exps/' + args.dataset + '/tt-sparse_bias_val_e' + str(args.epochs), np.array(val_acc_list))
-        #         np.save(f'./exps/{args.dataset}/{args.model}{args.hidden_dim}_{str(args.attn_type)}_reorder_s{args.seq_len}_e{args.epochs}_sp{args.world_size}_loss-fp16', np.array(loss_list))
-        #     else:
-        #         np.save(f'./exps/{args.dataset}/{args.model}{args.hidden_dim}_{str(args.attn_type)}_s{args.seq_len}_e{args.epochs}_sp{args.world_size}_test', np.array(test_acc_list))
-        #         # np.save('./exps/' + args.dataset + '/tt-sparse_bias_val_e' + str(args.epochs), np.array(val_acc_list))
-        #         np.save(f'./exps/{args.dataset}/{args.model}{args.hidden_dim}_{str(args.attn_type)}_s{args.seq_len}_e{args.epochs}_sp{args.world_size}_loss', np.array(loss_list))
-        # else:
-        #     np.save(f'./exps/{args.dataset}/{args.model}{args.hidden_dim}_{str(args.attn_type)}_{args.switch_freq}_s{args.seq_len}_e{args.epochs}_sp{args.world_size}_test', np.array(test_acc_list))
-        #     # np.save('./exps/' + args.dataset + '/tt-sparse_bias_val_e' + str(args.epochs), np.array(val_acc_list))
-        #     np.save(f'./exps/{args.dataset}/{args.model}{args.hidden_dim}_{str(args.attn_type)}_{args.switch_freq}_s{args.seq_len}_e{args.epochs}_sp{args.world_size}_loss', np.array(loss_list))
+        if args.attn_type != "hybrid":
+            if args.reorder:
+                np.save(f'./exps/{args.dataset}/{args.model}{args.hidden_dim}_{str(args.attn_type)}_reorder_s{args.seq_len}_e{args.epochs}_sp{args.world_size}_test-fp16', np.array(test_acc_list))
+                # np.save('./exps/' + args.dataset + '/tt-sparse_bias_val_e' + str(args.epochs), np.array(val_acc_list))
+                np.save(f'./exps/{args.dataset}/{args.model}{args.hidden_dim}_{str(args.attn_type)}_reorder_s{args.seq_len}_e{args.epochs}_sp{args.world_size}_loss-fp16', np.array(loss_list))
+            else:
+                np.save(f'./exps/{args.dataset}/{args.model}{args.hidden_dim}_{str(args.attn_type)}_s{args.seq_len}_e{args.epochs}_sp{args.world_size}_test', np.array(test_acc_list))
+                # np.save('./exps/' + args.dataset + '/tt-sparse_bias_val_e' + str(args.epochs), np.array(val_acc_list))
+                np.save(f'./exps/{args.dataset}/{args.model}{args.hidden_dim}_{str(args.attn_type)}_s{args.seq_len}_e{args.epochs}_sp{args.world_size}_loss', np.array(loss_list))
+        else:
+            np.save(f'./exps/{args.dataset}/{args.model}{args.hidden_dim}_{str(args.attn_type)}_{args.switch_freq}_s{args.seq_len}_e{args.epochs}_sp{args.world_size}_test', np.array(test_acc_list))
+            # np.save('./exps/' + args.dataset + '/tt-sparse_bias_val_e' + str(args.epochs), np.array(val_acc_list))
+            np.save(f'./exps/{args.dataset}/{args.model}{args.hidden_dim}_{str(args.attn_type)}_{args.switch_freq}_s{args.seq_len}_e{args.epochs}_sp{args.world_size}_loss', np.array(loss_list))
 
 
 if __name__ == "__main__":
