@@ -12,11 +12,11 @@ We provide code and document describing how to reproduce the key results present
 And we provide a Docker image to run the experiments in a container:
 
 ```bash
-docker pull zxmeng98/torchgt
+docker pull zxmeng98/torchgt:latest
 docker run --gpus all -it zxmeng98/torchgt
 ```
 
-(Option2) Build the environment yourself: We suggest using a conda environment to install the dependencies.
+(Option2) Build the environment yourself: We suggest using a conda environment to install the dependencies. Note that we use PyTorch 2.1.2 and CUDA 11.4. Importing DGL depends on the CUDA version.
 
 ```bash
 conda create --name torchgt python=3.10
@@ -24,6 +24,7 @@ conda activate torchgt
 cd torchgt
 pip install -r requirements.txt
 ```
+
 
 ## Table VI: Training Efficiency
 
