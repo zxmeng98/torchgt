@@ -94,7 +94,7 @@ To explore the supported maximum sequence length w.r.t. 4 GPUs, one can use the 
 bash ./scripts/2_scale_a.sh
 ```
 
-The output header of this script looks like below. On the cloud server, it needs about **8 minutes in the beginning to process the data.** 
+The output header of this script looks like below. On the cloud server, it needs about **8 minutes in the beginning to process the data.** The sequence length is set to 90K in this script. 
 ```bash
 *****************************************
 > initializing torch distributed ...
