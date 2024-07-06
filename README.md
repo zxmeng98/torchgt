@@ -7,17 +7,24 @@ We provide code and document describing how to reproduce the key results present
 
 ## Environment Preparation
 
-(Option1) For convenient artifact evaluation, we rent a 4-GPU cloud server (4x RTX 3090) for reviewers to reproduce the experiments. The environment is as below:
+For convenient artifact evaluation, we rent **a 4-GPU cloud server (4 x RTX 3090 24GB) with PCIe 4.0x16 lanes, AMD EPYC 7302P 16-Core CPU** for reviewers to reproduce the experiments. The connection to the server is:
+```bash
+Host SC-AE
+    HostName 185.158.179.210   
+    User root
+    Port 40061
+```
 
+If you want to reproduce the results on your own machines, we provide two options to prepare the environment:
 
-(Option2) And we provide a Docker image to run the experiments in a container. One can pull the image and run in a container.
+(Option 1) We provide a Docker image to run the experiments in a container. One can pull the image and run in a container.
 
 ```bash
 docker pull zxmeng98/torchgt
 docker run --gpus all -it zxmeng98/torchgt
 ```
 
-(Option3) Build the environment yourself: We suggest using a conda environment to install the dependencies.
+(Option 2) Build the environment yourself. We suggest using a conda environment to install the dependencies.
 
 ```bash
 conda create --name torchgt python=3.10
@@ -25,6 +32,9 @@ conda activate torchgt
 cd torchgt
 pip install -r requirements.txt
 ```
+### Note
+
+All experiment results are highly dependent on the GPUs used and network settings. 
 
 ## Table VI: Training Efficiency
 
@@ -79,7 +89,7 @@ To explore the supported maximum sequence length w.r.t. 4 GPUs, one can use the 
 bash ./scripts/2_scale_a.sh
 ```
 
-The output header of this script looks like this:
+The output header of this script looks like below. On the cloud server, it needs about **8 minutes in the beginning to process the data.** 
 ```bash
 *****************************************
 > initializing torch distributed ...
@@ -89,30 +99,43 @@ Dataset load successfully
 Train nodes: 1469417, Val nodes: 489806, Test nodes: 489806
 Training iters: 2, Val iters: 1, Test iters: 1
 Model params: 110576
+[07:52:11] /opt/dgl/src/graph/transform/metis_partition_hetero.cc:89: Partition a graph with 850001 nodes and 17438212 edges into 8 parts and get 1287531 edge cuts
+[07:56:04] /opt/dgl/src/graph/transform/metis_partition_hetero.cc:89: Partition a graph with 619418 nodes and 9802209 edges into 8 parts and get 845872 edge cuts
+Epoch: 005, Loss: 3.8062, Epoch Time: 1.645s
+Eval time 25.416417598724365s
+Epoch: 005, Loss: 3.806199, Train acc: 11.88%, Val acc: 12.03%, Test acc: 11.94%, Epoch Time: 1.645s
+Epoch: 006, Loss: 3.7869, Epoch Time: 1.644s
+Epoch: 007, Loss: 3.7633, Epoch Time: 1.643s
+Epoch: 008, Loss: 3.7344, Epoch Time: 1.642s
+Epoch: 009, Loss: 3.7002, Epoch Time: 1.641s
+Epoch: 010, Loss: 3.6609, Epoch Time: 1.641s
+Eval time 25.33997654914856s
 ...
 ```
 
 And the GPU statistics look like:
 ```bash
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 550.40.07              Driver Version: 550.40.07      CUDA Version: 12.4     |
 |-----------------------------------------+------------------------+----------------------+
 | GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
 | Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
 |                                         |                        |               MIG M. |
 |=========================================+========================+======================|
-|   0  NVIDIA GeForce RTX 3090        On  |   00000000:31:00.0 Off |                  N/A |
-| 35%   59C    P2            162W /  350W |   20851MiB /  24576MiB |    100%      Default |
+|   0  NVIDIA GeForce RTX 3090        On  |   00000000:01:00.0 Off |                  N/A |
+| 66%   69C    P2            236W /  300W |   20760MiB /  24576MiB |    100%      Default |
 |                                         |                        |                  N/A |
 +-----------------------------------------+------------------------+----------------------+
-|   1  NVIDIA GeForce RTX 3090        On  |   00000000:4B:00.0 Off |                  N/A |
-| 39%   71C    P2            166W /  350W |   20755MiB /  24576MiB |    100%      Default |
+|   1  NVIDIA GeForce RTX 3090        On  |   00000000:81:00.0 Off |                  N/A |
+| 62%   65C    P2            222W /  300W |   20680MiB /  24576MiB |    100%      Default |
 |                                         |                        |                  N/A |
 +-----------------------------------------+------------------------+----------------------+
-|   2  NVIDIA GeForce RTX 3090        On  |   00000000:B1:00.0 Off |                  N/A |
-| 37%   70C    P2            174W /  350W |   20755MiB /  24576MiB |    100%      Default |
+|   2  NVIDIA GeForce RTX 3090        On  |   00000000:82:00.0 Off |                  N/A |
+| 67%   69C    P2            229W /  300W |   20680MiB /  24576MiB |    100%      Default |
 |                                         |                        |                  N/A |
 +-----------------------------------------+------------------------+----------------------+
-|   3  NVIDIA GeForce RTX 3090        On  |   00000000:CA:00.0 Off |                  N/A |
-| 45%   70C    P2            162W /  350W |   20755MiB /  24576MiB |    100%      Default |
+|   3  NVIDIA GeForce RTX 3090        On  |   00000000:C1:00.0 Off |                  N/A |
+| 58%   63C    P2            233W /  300W |   20680MiB /  24576MiB |    100%      Default |
 |                                         |                        |                  N/A |
 +-----------------------------------------+------------------------+----------------------+
 ```
