@@ -94,27 +94,28 @@ To explore the supported maximum sequence length w.r.t. 4 GPUs, one can use the 
 bash ./scripts/2_scale_a.sh
 ```
 
-The output header of this script looks like below. On the cloud server, it needs about **8 minutes in the beginning to process the data.** The sequence length is set to 90K in this script. 
+The output header of this script looks like below. On the cloud server, it needs about **8 minutes in the beginning to process the data.** The sequence length is set to 890K in this script. 
+
 ```bash
 *****************************************
 > initializing torch distributed ...
 ************ Finish sequence parallel group Initialization. ***********
-Namespace(device=0, dataset_dir='./dataset/', dataset='ogbn-products', model='graphormer', n_layers=4, num_heads=8, hidden_dim=64, ffn_dim=64, attn_bias_dim=1, dropout_rate=0.3, input_dropout_rate=0.1, attention_dropout_rate=0.5, num_global_node=1, attn_type='sparse', seq_len=900000, weight_decay=0.01, warmup_updates=10, tot_updates=70, epochs=500, patience=50, peak_lr=0.0002, end_lr=1e-09, seed=42, perturb_feature=False, save_model=False, load_model=False, model_dir='./model_ckpt/', switch_freq=5, reorder=True, rank=0, local_rank=0, world_size=4, distributed_backend='nccl', distributed_timeout_minutes=10, sequence_parallel_size=4)
+Namespace(device=0, dataset_dir='./dataset/', dataset='ogbn-products', model='graphormer', n_layers=4, num_heads=8, hidden_dim=64, ffn_dim=64, attn_bias_dim=1, dropout_rate=0.3, input_dropout_rate=0.1, attention_dropout_rate=0.5, num_global_node=1, attn_type='sparse', seq_len=870000, weight_decay=0.01, warmup_updates=10, tot_updates=70, epochs=500, patience=50, peak_lr=0.0002, end_lr=1e-09, seed=42, perturb_feature=False, save_model=False, load_model=False, model_dir='./model_ckpt/', switch_freq=5, reorder=True, rank=0, local_rank=0, world_size=4, distributed_backend='nccl', distributed_timeout_minutes=10, sequence_parallel_size=4)
 Dataset load successfully
 Train nodes: 1469417, Val nodes: 489806, Test nodes: 489806
 Training iters: 2, Val iters: 1, Test iters: 1
 Model params: 110576
-[07:52:11] /opt/dgl/src/graph/transform/metis_partition_hetero.cc:89: Partition a graph with 850001 nodes and 17438212 edges into 8 parts and get 1287531 edge cuts
-[07:56:04] /opt/dgl/src/graph/transform/metis_partition_hetero.cc:89: Partition a graph with 619418 nodes and 9802209 edges into 8 parts and get 845872 edge cuts
-Epoch: 005, Loss: 3.8062, Epoch Time: 1.645s
-Eval time 25.416417598724365s
-Epoch: 005, Loss: 3.806199, Train acc: 11.88%, Val acc: 12.03%, Test acc: 11.94%, Epoch Time: 1.645s
-Epoch: 006, Loss: 3.7869, Epoch Time: 1.644s
-Epoch: 007, Loss: 3.7633, Epoch Time: 1.643s
-Epoch: 008, Loss: 3.7344, Epoch Time: 1.642s
-Epoch: 009, Loss: 3.7002, Epoch Time: 1.641s
-Epoch: 010, Loss: 3.6609, Epoch Time: 1.641s
-Eval time 25.33997654914856s
+[09:06:10] /opt/dgl/src/graph/transform/metis_partition_hetero.cc:89: Partition a graph with 870001 nodes and 18214272 edges into 8 parts and get 1293861 edge cuts
+[09:10:12] /opt/dgl/src/graph/transform/metis_partition_hetero.cc:89: Partition a graph with 599418 nodes and 9232785 edges into 8 parts and get 795565 edge cuts
+Epoch: 005, Loss: 3.8174, Epoch Time: 1.669s
+Eval time 25.34564471244812s
+Epoch: 005, Loss: 3.817384, Train acc: 11.88%, Val acc: 12.02%, Test acc: 11.95%, Epoch Time: 1.669s
+Epoch: 006, Loss: 3.8050, Epoch Time: 1.660s
+Epoch: 007, Loss: 3.7899, Epoch Time: 1.663s
+Epoch: 008, Loss: 3.7722, Epoch Time: 1.664s
+Epoch: 009, Loss: 3.7519, Epoch Time: 1.665s
+Epoch: 010, Loss: 3.7289, Epoch Time: 1.666s
+Eval time 25.428344011306763s
 ...
 ```
 
@@ -128,19 +129,19 @@ And the GPU statistics look like:
 |                                         |                        |               MIG M. |
 |=========================================+========================+======================|
 |   0  NVIDIA GeForce RTX 3090        On  |   00000000:01:00.0 Off |                  N/A |
-| 66%   69C    P2            236W /  300W |   20760MiB /  24576MiB |    100%      Default |
+| 68%   70C    P2            245W /  300W |   22090MiB /  24576MiB |    100%      Default |
 |                                         |                        |                  N/A |
 +-----------------------------------------+------------------------+----------------------+
 |   1  NVIDIA GeForce RTX 3090        On  |   00000000:81:00.0 Off |                  N/A |
-| 62%   65C    P2            222W /  300W |   20680MiB /  24576MiB |    100%      Default |
+| 62%   66C    P2            234W /  300W |   21580MiB /  24576MiB |    100%      Default |
 |                                         |                        |                  N/A |
 +-----------------------------------------+------------------------+----------------------+
 |   2  NVIDIA GeForce RTX 3090        On  |   00000000:82:00.0 Off |                  N/A |
-| 67%   69C    P2            229W /  300W |   20680MiB /  24576MiB |    100%      Default |
+| 68%   68C    P2            230W /  300W |   21580MiB /  24576MiB |    100%      Default |
 |                                         |                        |                  N/A |
 +-----------------------------------------+------------------------+----------------------+
 |   3  NVIDIA GeForce RTX 3090        On  |   00000000:C1:00.0 Off |                  N/A |
-| 58%   63C    P2            233W /  300W |   20680MiB /  24576MiB |    100%      Default |
+| 59%   62C    P2            242W /  300W |   21580MiB /  24576MiB |    100%      Default |
 |                                         |                        |                  N/A |
 +-----------------------------------------+------------------------+----------------------+
 ```
