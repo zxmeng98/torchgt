@@ -7,16 +7,17 @@ We provide code and document describing how to reproduce the key results present
 
 ## Environment Preparation
 
-(Option1) For convenient artifact evaluation, we will rent a 4-GPU cloud server (4x RTX 3090) for reviewers to reproduce the experiments. (comming soon...)
+(Option1) For convenient artifact evaluation, we rent a 4-GPU cloud server (4x RTX 3090) for reviewers to reproduce the experiments. The environment is as below:
 
-And we provide a Docker image to run the experiments in a container:
+
+(Option2) And we provide a Docker image to run the experiments in a container. One can pull the image and run in a container.
 
 ```bash
-docker pull zxmeng98/torchgt:latest
+docker pull zxmeng98/torchgt
 docker run --gpus all -it zxmeng98/torchgt
 ```
 
-(Option2) Build the environment yourself: We suggest using a conda environment to install the dependencies. Note that we use PyTorch 2.1.2 and CUDA 11.4. Importing DGL depends on the CUDA version.
+(Option3) Build the environment yourself: We suggest using a conda environment to install the dependencies.
 
 ```bash
 conda create --name torchgt python=3.10
@@ -24,7 +25,6 @@ conda activate torchgt
 cd torchgt
 pip install -r requirements.txt
 ```
-
 
 ## Table VI: Training Efficiency
 
@@ -46,7 +46,12 @@ Dataset load successfully
 Train nodes: 101605, Val nodes: 33869, Test nodes: 33869
 Training iters: 2, Val iters: 1, Test iters: 1
 Model params: 111913
+[07:14:28] /opt/dgl/src/graph/transform/metis_partition_hetero.cc:89: Partition a graph with 64001 nodes and 526450 edges into 8 parts and get 92140 edge cuts
+[07:14:33] /opt/dgl/src/graph/transform/metis_partition_hetero.cc:89: Partition a graph with 37606 nodes and 228357 edges into 8 parts and get 43888 edge cuts
+------------------------------------------------------------------------------------
 Epoch: 005, Loss: 3.5716, Epoch Time: 0.083s
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
 Eval time 0.36298489570617676s
 ...
 ...
@@ -55,8 +60,11 @@ Epoch: 1997, Loss: 1.0381, Epoch Time: 0.109s
 Epoch: 1998, Loss: 1.0226, Epoch Time: 0.109s
 Epoch: 1999, Loss: 1.0281, Epoch Time: 0.109s
 Epoch: 2000, Loss: 1.0302, Epoch Time: 0.109s
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
 Eval time 0.4491288661956787s
 Epoch: 2000, Loss: 1.030161, Train acc: 56.32%, Val acc: 54.36%, Test acc: 54.06%, Epoch Time: 0.109s
+------------------------------------------------------------------------------------
 Best validation accuracy: 54.52%, test accuracy: 54.35%
 ```
 

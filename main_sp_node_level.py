@@ -217,7 +217,9 @@ def main():
         
         if epoch > 4 and args.rank == 0:  
             epoch_t_list.append(np.sum(iter_t_list))
+            print("------------------------------------------------------------------------------------")
             print("Epoch: {:03d}, Loss: {:.4f}, Epoch Time: {:.3f}s".format(epoch, np.mean(loss_list), np.mean(epoch_t_list)))
+            print("------------------------------------------------------------------------------------")
 
         if args.rank == 0 and epoch % 5 == 0:   
             t4 = time.time()
@@ -225,9 +227,11 @@ def main():
             val_acc = sparse_eval_gpu(args, model, feature, y, split_idx['valid'], attn_bias, edge_index, device)
             test_acc = sparse_eval_gpu(args, model, feature, y, split_idx['test'], attn_bias, edge_index, device)
             t5 = time.time()
+            print("------------------------------------------------------------------------------------")
             print(f'Eval time {t5-t4}s')
             print("Epoch: {:03d}, Loss: {:4f}, Train acc: {:.2%}, Val acc: {:.2%}, Test acc: {:.2%}, Epoch Time: {:.3f}s".format(
                 epoch, np.mean(loss_list), train_acc, val_acc, test_acc, np.mean(epoch_t_list)))
+            print("------------------------------------------------------------------------------------")
             
             if val_acc > best_val:
                 best_val = val_acc
