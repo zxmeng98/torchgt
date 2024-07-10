@@ -20,6 +20,10 @@ cd torchgt
 conda activate gt
 ```
 
+> 💡[! Comments for AEC]
+>  For evaluation to avoid interference and save the rental cost, could you please provide your available time slots in SC Submission System? I can better arrange and reserve the server for one day for each reviewer. 
+
+
 If you want to reproduce the results on your own machines, we provide two options to prepare the environment:
 
 (Option 1) We provide a Docker image to run the experiments in a container. One can pull the image and run in a container.
