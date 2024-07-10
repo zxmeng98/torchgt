@@ -5,7 +5,7 @@ TorchGT is an efficient, scalable, and accurate graph transformer training syste
 
 We provide code and document describing how to reproduce the key results presented in the SC'24 paper.
 
-## Environment Preparation
+## Ready-for-use Environment
 
 > [!NOTE]
 > 💡For evaluation to avoid interference and save the rental cost, could you please **provide your available time slots** in SC Submission System? I can better arrange and reserve the server for one day for each reviewer. 
@@ -25,6 +25,7 @@ cd torchgt
 conda activate gt
 ```
 
+## Install Yourself
 
 If you want to reproduce the results on your own machines, we provide two options to prepare the environment:
 
