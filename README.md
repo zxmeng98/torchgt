@@ -7,6 +7,9 @@ We provide code and document describing how to reproduce the key results present
 
 ## Environment Preparation
 
+> [!NOTE]
+> 💡For evaluation to avoid interference and save the rental cost, could you please **provide your available time slots** in SC Submission System? I can better arrange and reserve the server for one day for each reviewer. 
+
 For convenient artifact evaluation, we rent **a 4-GPU cloud server (4 x RTX 3090 24GB) with PCIe 4.0x16 lanes, AMD EPYC 7302P 16-Core CPU** for reviewers to reproduce the experiments. And we have already set up the environment, codebase, and some datasets on the server. The connection to the server is:
 ```bash
 Host SC-AE
@@ -19,9 +22,6 @@ After connection:
 cd torchgt
 conda activate gt
 ```
-
-> [!NOTE]
-> 💡For evaluation to avoid interference and save the rental cost, could you please provide your available time slots in SC Submission System? I can better arrange and reserve the server for one day for each reviewer. 
 
 
 If you want to reproduce the results on your own machines, we provide two options to prepare the environment:
