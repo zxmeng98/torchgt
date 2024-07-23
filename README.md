@@ -98,7 +98,7 @@ Best validation accuracy: 54.52%, test accuracy: 54.35%
 
 To explore the supported maximum sequence length w.r.t. 4 GPUs, one can use the following command line:
 ```bash
-bash ./scripts/2_scale_a.sh
+bash ./scripts/2_scale.sh
 ```
 
 The output header of this script looks like below. On the cloud server, it needs about **8 minutes in the beginning to process the data.** The sequence length is set to 870K in this script. 
@@ -161,12 +161,13 @@ To plot a figure, use script in ```./plot.ipynb``` section Figure 8(a). And repl
 To see the impact of elastic computation reformation module, we record the attention computation time corresponding to different sequence lengths. For attention module microbenchmarks, we choose attention computation on $S$=64K for illustration. One can use the following command in ```./scripts/3_attn_time.sh``` to reproduce the three methods in the figure:
 
 ```bash
-python attn_module.py --s 64000 --method torchgt # Cluster-sparse Attn, S=64K
-python attn_module.py --s 64000 --method sparse # Sparse Attn, S=64K
-python attn_module.py --s 64000 --method flash # Flash Attn, S=64K
+# S = 64K
+python attn_module.py --s 64000 --method torchgt # Cluster-sparse Attn
+python attn_module.py --s 64000 --method sparse # Sparse Attn
+python attn_module.py --s 64000 --method flash # Flash Attn
 ```
 
-The output of the scripts looks like this:
+The output looks like this:
 
 ```bash
 Start loading dataset
@@ -179,7 +180,7 @@ After running the command, a ```trace.jason``` file under ```./tensorboard_trace
 For example, for attention module with ```--s 64000 --n 4 --hn 16 --method torchgt```, the trace file looks like below. The time bars in the red box represent attention forward and backward time. Adding those kernels together, we get attention computation time of 4.35ms.
 ![](docs/trace1.png)
 
-By zooming in, we can read the backward time of 1.53ms. The forward time can be readed similarly.
+By zooming in, we can read the backward time of 1.53ms. The forward time can be read similarly.
 ![](docs/trace1_bw.png)
 
 
@@ -195,8 +196,9 @@ FlashAttention when the sequence length is small. In contrast, TorchGT should im
 To see the impact of irregular memory access, we compare the backward (BW) time of topology-pattern and its dense counterpart when training Graphormer on ogbn-products. One can use the following command in ```./scripts/4_bw_time.sh``` to reproduce the two cases in the table:
 
 ```bash
-python attn_module.py --s 64000 --method sparse # Topology-pattern BW. Time, S=64K
-python attn_module.py --s 64000 --method torchgt # Dense BW. Time, S=64K
+# S = 64K
+python attn_module.py --s 64000 --method sparse # Topology-pattern BW. Time
+python attn_module.py --s 64000 --method torchgt # Dense BW. Time
 ```
 
 The output looks like the above in Figure 11(a) and trace files will be generated. We record the results also by reading from traces. By changing the input argument ```--s``` to 128K, 256K and 512K, one can get full results by running line-by-line seperately in ```./scripts/4_bw_time.sh```.
