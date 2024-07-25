@@ -15,9 +15,9 @@ We provide code and document describing how to reproduce the key results present
 For convenient artifact evaluation, we rent **a 4-GPU cloud server (4 x RTX 3090 24GB) with PCIe 4.0x16 lanes, AMD EPYC 7302P 16-Core CPU** for reviewers. And we have already set up the environment, codebase, and some datasets on the server. The connection to the server is:
 ```bash
 Host SC-AE
-    HostName 185.158.179.210   
-    User root
-    Port 40061
+  HostName 185.158.179.210   
+  User root
+  Port 40057
 ```
 After connection:
 ```bash
