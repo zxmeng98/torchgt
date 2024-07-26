@@ -55,7 +55,7 @@ To reproduce the training throughput and test accuracy of training $GPH_{Slim}$ 
 ```bash
 bash ./scripts/1_efficiency.sh
 ```
-When training on ogbn-arxiv, we set the sequence length to 64K for $GPH_{Slim}$ and GT. This is the end-to-end evaluation results of training throughput and test accuracy of training graph transformer on ogbn-arxiv dataset. For faster job completion time, we use dummy input bias. 
+When training on ogbn-arxiv, we set the sequence length to 64K for $GPH_{Slim}$ and GT. This is the end-to-end evaluation results of training throughput and test accuracy of training graph transformer on ogbn-arxiv dataset. 
 
 The output of this script looks like this:
 
