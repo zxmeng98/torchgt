@@ -17,7 +17,7 @@ For convenient artifact evaluation, we rent **a 4-GPU cloud server (4 x RTX 3090
 Host SC-AE
   HostName 185.158.179.210   
   User root
-  Port 40057
+  Port 40066
 ```
 After connection:
 ```bash
